@@ -257,10 +257,10 @@ class TensorData:
         ), f"Must give a position to each dimension. Shape: {self.shape} Order: {order}"
         return TensorData(
             storage=np.copy(self._storage),
-            shape = tuple(np.take(self.shape, order)),
-            strides = tuple(np.take(self.strides, order)),
-            # shape=tuple(self.shape[i] for i in order),
-            # strides=tuple(self.strides[i] for i in order),
+            # shape = tuple(np.take(self.shape, order)),
+            # strides = tuple(np.take(self.strides, order)),
+            shape=tuple(self.shape[i] for i in order),
+            strides=tuple(self.strides[i] for i in order),
         )
 
     def to_string(self) -> str:
