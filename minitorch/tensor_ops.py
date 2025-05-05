@@ -98,6 +98,7 @@ class TensorBackend:
         # Reduce
         self.add_reduce = ops.reduce(operators.add, 0.0)
         self.mul_reduce = ops.reduce(operators.mul, 1.0)
+        self.max_reduce = ops.reduce(operators.max, -np.inf)
         self.matrix_multiply = ops.matrix_multiply
         self.cuda = ops.cuda
 
@@ -466,7 +467,11 @@ def tensor_zip(
         b_strides: Strides,
     ) -> None:
         out_indices, a_indices = index_broadcast(out_shape, out_strides, a_shape, a_strides)
-        _, b_indices = index_broadcast(out_shape, out_strides, b_shape, b_strides)
+        out_indices2, b_indices = index_broadcast(out_shape, out_strides, b_shape, b_strides)
+        order = np.argsort(out_indices)
+        out_indices = out_indices[order]
+        a_indices = a_indices[order]
+        b_indices = b_indices[np.argsort(out_indices2)]
         out[out_indices] = np.vectorize(fn)(a_storage[a_indices], b_storage[b_indices])
 
     return _zip

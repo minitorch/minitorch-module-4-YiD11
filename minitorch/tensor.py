@@ -30,6 +30,7 @@ from .tensor_functions import (
     Sigmoid,
     Sum,
     View,
+    Max,
     tensor,
 )
 
@@ -222,6 +223,13 @@ class Tensor:
             return self.sum(dim) / self.shape[dim]
         else:
             return self.sum() / self.size
+    
+    def max(self, dim: Optional[int] = None) -> Tensor:
+        "Compute the max over dimension `dim`"
+        if dim is None:
+            return Max.apply(self.contiguous().view(self.size), self._ensure_tensor(0))
+        else:
+            return Max.apply(self, self._ensure_tensor(dim))
 
     def permute(self, *order: int) -> Tensor:
         "Permute tensor dimensions to *order"
@@ -312,6 +320,19 @@ class Tensor:
             out = zero(self.shape)
         else:
             out = zero(shape)
+        out._type_(self.backend)
+        return out
+
+    def ones(self, shape: Optional[UserShape] = None) -> Tensor:
+        def one(shape: UserShape) -> Tensor:
+            return Tensor.make(
+                [1.0] * int(operators.prod(shape)), shape, backend=self.backend
+            )
+
+        if shape is None:
+            out = one(self.shape)
+        else:
+            out = one(shape)
         out._type_(self.backend)
         return out
 

@@ -5,6 +5,8 @@ import math
 # ## Task 0.1
 from typing import Callable, Iterable
 
+import random
+
 #
 # Implementation of a prelude of elementary functions.
 

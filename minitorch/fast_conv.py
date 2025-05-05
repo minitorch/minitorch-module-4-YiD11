@@ -221,8 +221,8 @@ def _tensor_conv2d(
         reverse (bool): anchor weight at top-left or bottom-right
 
     """
-    batch_, out_channels, _, _ = out_shape
-    batch, in_channels, height, width = input_shape
+    batch_, out_channels, out_height, out_width = out_shape
+    batch, in_channels, in_height, in_width = input_shape
     out_channels_, in_channels_, kh, kw = weight_shape
 
     assert (
@@ -237,18 +237,18 @@ def _tensor_conv2d(
     s10, s11, s12, s13 = s1[0], s1[1], s1[2], s1[3]
     s20, s21, s22, s23 = s2[0], s2[1], s2[2], s2[3]
 
-    for b in prange(batch):
-        for oc in prange(out_channels):
-            for ow in prange(width):
-                for oh in prange(height):
+    for b in range(batch):
+        for oc in range(out_channels):
+            for oh in range(out_height):
+                for ow in range(out_width):
                     temp_list = np.zeros(in_channels, dtype=np.float64)
-                    for ic in prange(in_channels):
+                    for ic in range(in_channels):
                         value = 0.0
                         for w in range(kw):
                             iw = ow + (w if not reverse else -w)
                             for h in range(kh):
                                 ih = oh + (h if not reverse else -h)
-                                if iw >= 0 and iw < width and ih >= 0 and ih < height:
+                                if iw >= 0 and iw < in_width and ih >= 0 and ih < in_height:
                                     value += (
                                         input[
                                             b * s1[0] + ic * s1[1] + ih * s1[2] + iw * s1[3]
@@ -262,7 +262,8 @@ def _tensor_conv2d(
                     ] = np.sum(temp_list, axis=0)
 
 
-tensor_conv2d = njit(_tensor_conv2d, parallel=True, fastmath=True)
+tensor_conv2d = _tensor_conv2d
+# tensor_conv2d = njit(_tensor_conv2d, parallel=True, fastmath=True)
 
 
 class Conv2dFun(Function):

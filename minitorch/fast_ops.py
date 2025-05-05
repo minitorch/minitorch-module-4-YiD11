@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 # in these functions.
 Fn = TypeVar("Fn")
 
+USE_NUMBA = False
 
 def njit(fn: Fn, **kwargs: Any) -> Fn:
     return _njit(inline="always", **kwargs)(fn)  # type: ignore
@@ -131,19 +132,21 @@ def fast_index_broadcast(
         in_aligned_indices[i * len(in_indices) : (i + 1) * len(in_indices)] = in_indices
     return out_indices, in_aligned_indices
 
-to_index = njit(to_index)
-index_to_position = njit(index_to_position)
-shape_size_diff = njit(shape_size_diff)
-index_permutation = njit(index_permutation)
-index_permutation_pair = njit(index_permutation_pair)
-fast_index_broadcast = njit(fast_index_broadcast)
+if USE_NUMBA:
+    to_index = njit(to_index)
+    index_to_position = njit(index_to_position)
+    shape_size_diff = njit(shape_size_diff)
+    index_permutation = njit(index_permutation)
+    index_permutation_pair = njit(index_permutation_pair)
+    fast_index_broadcast = njit(fast_index_broadcast)
 
 class FastOps(TensorOps):
     @staticmethod
     def map(fn: Callable[[float], float]) -> MapProto:
         """See `tensor_ops.py`"""
         # This line JIT compiles your tensor_map
-        fn = njit(fn)
+        if USE_NUMBA:
+            fn = njit(fn)
         f = tensor_map(fn)
 
         def ret(a: Tensor, out: Optional[Tensor] = None) -> Tensor:
@@ -157,7 +160,8 @@ class FastOps(TensorOps):
     @staticmethod
     def zip(fn: Callable[[float, float], float]) -> Callable[[Tensor, Tensor], Tensor]:
         """See `tensor_ops.py`"""
-        fn = njit(fn)
+        if USE_NUMBA:
+            fn = njit(fn)
         f = tensor_zip(fn)
 
         def ret(a: Tensor, b: Tensor) -> Tensor:
@@ -173,7 +177,8 @@ class FastOps(TensorOps):
         fn: Callable[[float, float], float], start: float = 0.0
     ) -> Callable[[Tensor, int], Tensor]:
         """See `tensor_ops.py`"""
-        fn = njit(fn)
+        if USE_NUMBA:
+            fn = njit(fn)
         f = tensor_reduce(fn)
 
         def ret(a: Tensor, dim: int) -> Tensor:
@@ -276,16 +281,22 @@ def tensor_map(
             and np.equal(out_shape, in_shape).all()
             and np.equal(out_strides, in_strides).all()
         ):
-            for i in prange(len(out)):
-                out[i] = fn(in_storage[i])
+            if USE_NUMBA:
+                for i in prange(len(out)):
+                    out[i] = fn(in_storage[i])
+            else:
+                for i in range(len(out)):
+                    out[i] = fn(in_storage[i])
             return
         
-        out_indices, in_indices = fast_index_broadcast(out_shape, out_strides, in_shape, in_strides)
+        if USE_NUMBA:
+            out_indices, in_indices = fast_index_broadcast(out_shape, out_strides, in_shape, in_strides)
+        else:
+            out_indices, in_indices = index_broadcast(out_shape, out_strides, in_shape, in_strides)
         for i in prange(len(out_indices)):
             out[out_indices[i]] = fn(in_storage[in_indices[i]]) # type: ignore
 
-    # return _map
-    return njit(_map, parallel=True)  # type: ignore
+    return njit(_map, parallel=True) if USE_NUMBA else _map  # type: ignore
 
 
 def tensor_zip(
@@ -331,12 +342,20 @@ def tensor_zip(
             and np.equal(out_strides, a_strides).all()
             and np.equal(out_strides, b_strides).all()
         ):
-            for i in prange(len(out)):
-                out[i] = fn(a_storage[i], b_storage[i])
+            if USE_NUMBA:
+                for i in prange(len(out)):
+                    out[i] = fn(a_storage[i], b_storage[i])
+            else:
+                for i in range(len(out)):
+                    out[i] = fn(a_storage[i], b_storage[i])
             return
-        
-        out_indices, a_indices = fast_index_broadcast(out_shape, out_strides, a_shape, a_strides)
-        out_indices2, b_indices = fast_index_broadcast(out_shape, out_strides, b_shape, b_strides)
+
+        if USE_NUMBA:
+            out_indices, a_indices = fast_index_broadcast(out_shape, out_strides, a_shape, a_strides)
+            out_indices2, b_indices = fast_index_broadcast(out_shape, out_strides, b_shape, b_strides)
+        else:
+            out_indices, a_indices = index_broadcast(out_shape, out_strides, a_shape, a_strides)
+            out_indices2, b_indices = index_broadcast(out_shape, out_strides, b_shape, b_strides)
         order = np.argsort(out_indices)
         out_indices = out_indices[order]
         a_indices = a_indices[order]
@@ -344,8 +363,7 @@ def tensor_zip(
         for i in prange(len(out_indices)):
             out[out_indices[i]] = fn(a_storage[a_indices[i]], b_storage[b_indices[i]]) # type: ignore
 
-    # return _zip
-    return njit(_zip, parallel=True)  # type: ignore
+    return njit(_zip, parallel=True) if USE_NUMBA else _zip  # type: ignore
 
 
 def tensor_reduce(
@@ -397,8 +415,7 @@ def tensor_reduce(
             for j in range(len(out_indices)):
                 out[out_indices[j]] = fn(out[out_indices[j]], a_storage[a_reduce_indices[j]]) # type: ignore
 
-    # return _reduce
-    return njit(_reduce, parallel=True)  # type: ignore
+    return njit(_reduce, parallel=True) if USE_NUMBA else _reduce  # type: ignore
 
 
 def _tensor_matrix_multiply(
@@ -464,6 +481,9 @@ def _tensor_matrix_multiply(
                     a_storage[a_indices] * b_storage[b_indices]
                 )
 
-# tensor_matrix_multiply = _tensor_matrix_multiply
-tensor_matrix_multiply = njit(_tensor_matrix_multiply, parallel=True)
+if USE_NUMBA:
+    tensor_matrix_multiply = njit(_tensor_matrix_multiply, parallel=True)
+else:
+    tensor_matrix_multiply = _tensor_matrix_multiply
+
 assert tensor_matrix_multiply is not None
