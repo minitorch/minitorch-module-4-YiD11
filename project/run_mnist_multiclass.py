@@ -41,8 +41,9 @@ class Conv2d(minitorch.Module):
         self.bias = RParam(out_channels, 1, 1)
 
     def forward(self, input):
-        # TODO: Implement for Task 4.5.
-        raise NotImplementedError("Need to implement for Task 4.5")
+        o = minitorch.Conv2dFun.apply(input, self.weights.value)
+        o = o + self.bias.value
+        return o
 
 
 class Network(minitorch.Module):
@@ -64,15 +65,24 @@ class Network(minitorch.Module):
         super().__init__()
 
         # For vis
-        self.mid = None
-        self.out = None
+        self.mid = Conv2d(1, 4, 3, 3)
+        self.out = Conv2d(4, 8, 3, 3)
 
-        # TODO: Implement for Task 4.5.
-        raise NotImplementedError("Need to implement for Task 4.5")
+        self.ffn1 = Linear(392, 64)
+        self.ffn2 = Linear(64, C)
+        
 
     def forward(self, x):
-        # TODO: Implement for Task 4.5.
-        raise NotImplementedError("Need to implement for Task 4.5")
+        batch, in_channels, height, width = x.shape
+        assert in_channels == 1
+        h = self.mid.forward(x)
+        h = self.out.forward(h)
+        h = minitorch.avgpool2d(h, (4, 4))
+        h = h.view(batch, h.size // batch)
+        h = self.ffn1.forward(h)
+        h = self.ffn2.forward(h)
+        o = minitorch.logsoftmax(h, 1)
+        return o
 
 
 def make_mnist(start, stop):

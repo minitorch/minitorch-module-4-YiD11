@@ -89,9 +89,27 @@ def _tensor_conv1d(
     )
     s1 = input_strides
     s2 = weight_strides
-
-    # TODO: Implement for Task 4.1.
-    raise NotImplementedError("Need to implement for Task 4.1")
+    for b in prange(batch):
+        for oc in prange(out_channels):
+            for ow in prange(out_width):
+                temp_list = np.zeros(in_channels, dtype=np.float64)
+                for ic in prange(in_channels):
+                    value = 0.0
+                    for w in range(kw):
+                        iw = ow + (w if not reverse else -w)
+                        if iw >= 0 and iw < width:
+                            value += (
+                                input[
+                                    b * s1[0] + ic * s1[1] + iw * s1[2]
+                                ] * weight[
+                                    oc * s2[0] + ic * s2[1] + (w if not reverse else kw - 1 - w) * s2[2]
+                                ]
+                            )
+                    temp_list[ic] = value
+                out[
+                    b * out_strides[0] + oc * out_strides[1] + ow * out_strides[2]
+                ] = np.sum(temp_list, axis=0)
+                
 
 
 tensor_conv1d = njit(_tensor_conv1d, parallel=True)
@@ -203,8 +221,8 @@ def _tensor_conv2d(
         reverse (bool): anchor weight at top-left or bottom-right
 
     """
-    batch_, out_channels, _, _ = out_shape
-    batch, in_channels, height, width = input_shape
+    batch_, out_channels, out_height, out_width = out_shape
+    batch, in_channels, in_height, in_width = input_shape
     out_channels_, in_channels_, kh, kw = weight_shape
 
     assert (
@@ -219,11 +237,33 @@ def _tensor_conv2d(
     s10, s11, s12, s13 = s1[0], s1[1], s1[2], s1[3]
     s20, s21, s22, s23 = s2[0], s2[1], s2[2], s2[3]
 
-    # TODO: Implement for Task 4.2.
-    raise NotImplementedError("Need to implement for Task 4.2")
+    for b in range(batch):
+        for oc in range(out_channels):
+            for oh in range(out_height):
+                for ow in range(out_width):
+                    temp_list = np.zeros(in_channels, dtype=np.float64)
+                    for ic in range(in_channels):
+                        value = 0.0
+                        for w in range(kw):
+                            iw = ow + (w if not reverse else -w)
+                            for h in range(kh):
+                                ih = oh + (h if not reverse else -h)
+                                if iw >= 0 and iw < in_width and ih >= 0 and ih < in_height:
+                                    value += (
+                                        input[
+                                            b * s1[0] + ic * s1[1] + ih * s1[2] + iw * s1[3]
+                                        ] * weight[
+                                            oc * s2[0] + ic * s2[1] + (h if not reverse else kh - 1 - h) * s2[2] + (w if not reverse else kw - 1 - w) * s2[3]
+                                        ]
+                                    )
+                        temp_list[ic] = value
+                    out[
+                        b * out_strides[0] + oc * out_strides[1] + oh * out_strides[2] + ow * out_strides[3]
+                    ] = np.sum(temp_list, axis=0)
 
 
-tensor_conv2d = njit(_tensor_conv2d, parallel=True, fastmath=True)
+tensor_conv2d = _tensor_conv2d
+# tensor_conv2d = njit(_tensor_conv2d, parallel=True, fastmath=True)
 
 
 class Conv2dFun(Function):

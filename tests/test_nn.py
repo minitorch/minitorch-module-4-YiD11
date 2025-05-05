@@ -31,8 +31,9 @@ def test_avg(t: Tensor) -> None:
 @pytest.mark.task4_4
 @given(tensors(shape=(2, 3, 4)))
 def test_max(t: Tensor) -> None:
-    # TODO: Implement for Task 4.4.
-    raise NotImplementedError("Need to implement for Task 4.4")
+    i = minitorch.tensor([[0, 1], [2, 3]], backend=t.backend, requires_grad=True).view(2, 2)
+    out = i.max(dim=1)
+    minitorch.grad_check(lambda t: t.max(dim=1), i)
 
 
 @pytest.mark.task4_4

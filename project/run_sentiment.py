@@ -20,7 +20,7 @@ class Linear(minitorch.Module):
         self.bias = RParam(out_size)
         self.out_size = out_size
 
-    def forward(self, x):
+    def forward(self, x: minitorch.Tensor) -> minitorch.Tensor:
         batch, in_size = x.shape
         return (
             x.view(batch, in_size) @ self.weights.value.view(in_size, self.out_size)
@@ -33,9 +33,10 @@ class Conv1d(minitorch.Module):
         self.weights = RParam(out_channels, in_channels, kernel_width)
         self.bias = RParam(1, out_channels, 1)
 
-    def forward(self, input):
-        # TODO: Implement for Task 4.5.
-        raise NotImplementedError("Need to implement for Task 4.5")
+    def forward(self, input: minitorch.Tensor) -> minitorch.Tensor:
+        o = minitorch.Conv1dFun.apply(input, self.weights.value)
+        o = o + self.bias.value
+        return o
 
 
 class CNNSentimentKim(minitorch.Module):
@@ -61,15 +62,28 @@ class CNNSentimentKim(minitorch.Module):
     ):
         super().__init__()
         self.feature_map_size = feature_map_size
-        # TODO: Implement for Task 4.5.
-        raise NotImplementedError("Need to implement for Task 4.5")
+        self.conv1d = Conv1d(
+            in_channels=embedding_size,
+            out_channels=feature_map_size,
+            kernel_width=filter_sizes[0],
+        )
+        self.filter_sizes = filter_sizes
+        self.ffn = Linear(feature_map_size, 1)
 
     def forward(self, embeddings):
         """
         embeddings tensor: [batch x sentence length x embedding dim]
         """
-        # TODO: Implement for Task 4.5.
-        raise NotImplementedError("Need to implement for Task 4.5")
+        batch, sentence_length, embedding_dim = embeddings.shape
+        x = embeddings.permute(0, 2, 1)
+        h = self.conv1d.forward(x)
+        h = h.max(dim=2)
+        h = h.permute(0, 2, 1)
+        h = h.contiguous().view(batch, self.feature_map_size)
+        h = self.ffn.forward(h).relu()
+        h = minitorch.dropout(h, 0.25)
+        o = h.sigmoid()
+        return o
 
 
 # Evaluation helper methods
